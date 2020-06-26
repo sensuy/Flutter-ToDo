@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:todo/models/item.dart';
 
 void main() {
@@ -24,9 +26,9 @@ class HomePage extends StatefulWidget {
 
   HomePage() {
     items = [];
-    items.add(Item(title: 'Banana', done: false));
+    /*  items.add(Item(title: 'Banana', done: false));
     items.add(Item(title: 'Abacate', done: true));
-    items.add(Item(title: 'Laranja', done: false));
+    items.add(Item(title: 'Laranja', done: false)); */
   }
 
   @override
@@ -34,27 +36,117 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  var newTaskCtrl = TextEditingController();
+
+  void add() {
+    if (newTaskCtrl.text.isEmpty) return;
+    setState(() {
+      widget.items.add(
+        Item(
+          title: newTaskCtrl.text,
+          done: false,
+        ),
+      );
+      newTaskCtrl.text = ''; // or  newTaskCtrl.clear()
+      save();
+    });
+  }
+
+  void remove(int index) {
+    setState(() {
+      widget.items.removeAt(index);
+      save();
+    });
+  }
+
+  Future load() async {
+    var prefs = await SharedPreferences.getInstance();
+    var data = prefs.getString('data');
+    if (data != null) {
+      Iterable decoded = jsonDecode(data);
+      List<Item> result = decoded.map((x) => Item.fromJson(x)).toList();
+      setState(() {
+        widget.items = result;
+      });
+    }
+  }
+
+  Future save() async {
+    var prefs = await SharedPreferences.getInstance();
+    await prefs.setString('data', jsonEncode(widget.items));
+  }
+
+  _HomePageState() {
+    load();
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('To Do List'),
+        title: TextFormField(
+          controller: newTaskCtrl,
+          keyboardType: TextInputType.text,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+          ),
+          decoration: InputDecoration(
+              labelText: 'Nova tarefa',
+              labelStyle: TextStyle(
+                color: Colors.white,
+              )),
+        ),
       ),
       body: ListView.builder(
         itemCount: widget.items.length,
         itemBuilder: (BuildContext ctxt, int index) {
           final item = widget.items[index];
-          return CheckboxListTile(
-            title: Text(item.title),
+          return Dismissible(
+            child: CheckboxListTile(
+              title: Text(item.title),
+              value: item.done,
+              onChanged: (value) {
+                setState(() {
+                  item.done = value;
+                  save();
+                });
+              },
+            ),
             key: Key(item.title),
-            value: item.done,
-            onChanged: (value) {
-              setState(() {
-                item.done = value;
-              });
+            background: Container(
+              color: Colors.red.withOpacity(0.9),
+            ),
+            onDismissed: (direction) {
+              remove(index);
             },
+            /*  confirmDismiss: (DismissDirection direction) async {
+              return await showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: const Text("Confirm"),
+                    content: const Text(
+                        "Are you sure you wish to delete this item?"),
+                    actions: <Widget>[
+                      FlatButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: const Text("DELETE")),
+                      FlatButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text("CANCEL"),
+                      ),
+                    ],
+                  );
+                },
+              );
+            }, */
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: add,
+        child: Icon(Icons.add),
+        backgroundColor: Colors.pink,
       ),
     );
   }
